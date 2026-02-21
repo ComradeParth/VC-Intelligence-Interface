@@ -9,10 +9,11 @@ interface StoreState {
     selectedCompanyId: string | null;
     setSelectedCompanyId: (id: string | null) => void;
     updateCompanyEnrichment: (companyId: string, data: EnrichmentData) => void;
+    addCompany: (company: Omit<Company, "id" | "enrichmentData">) => void;
 
     /* ── Lists ── */
     lists: CompanyList[];
-    createList: (name: string, description?: string) => void;
+    createList: (name: string, description?: string, companyIds?: string[]) => void;
     deleteList: (listId: string) => void;
     addCompanyToList: (listId: string, companyId: string) => void;
     removeCompanyFromList: (listId: string, companyId: string) => void;
@@ -54,6 +55,14 @@ export const useStore = create<StoreState>()(
                     ),
                 })),
 
+            addCompany: (company) =>
+                set((state) => ({
+                    companies: [
+                        ...state.companies,
+                        { ...company, id: generateId(), enrichmentData: null },
+                    ],
+                })),
+
             /* ── Lists ── */
             lists: [
                 {
@@ -67,7 +76,7 @@ export const useStore = create<StoreState>()(
                 },
             ],
 
-            createList: (name, description = "") =>
+            createList: (name, description = "", companyIds = []) =>
                 set((state) => ({
                     lists: [
                         ...state.lists,
@@ -75,7 +84,7 @@ export const useStore = create<StoreState>()(
                             id: generateId(),
                             name,
                             description,
-                            companyIds: [],
+                            companyIds,
                             createdAt: new Date().toISOString(),
                             updatedAt: new Date().toISOString(),
                             color: LIST_COLORS[state.lists.length % LIST_COLORS.length],

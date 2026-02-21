@@ -19,16 +19,22 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useSidebarState } from "@/components/layout/app-shell";
-
-const navItems = [
-    { href: "/companies", label: "Companies", icon: Building2 },
-    { href: "/lists", label: "Lists", icon: ListChecks },
-    { href: "/saved", label: "Saved", icon: Bookmark },
-] as const;
+import { useStore } from "@/store/useStore";
 
 const Sidebar = () => {
     const pathname = usePathname();
     const { collapsed, setCollapsed } = useSidebarState();
+    const companies = useStore((s) => s.companies);
+    const lists = useStore((s) => s.lists);
+    const savedSearches = useStore((s) => s.savedSearches);
+
+    const enrichedCount = companies.filter((c) => c.enrichmentData && !c.enrichmentData.demo).length;
+
+    const navItems = [
+        { href: "/companies", label: "Companies", icon: Building2, count: companies.length, badge: enrichedCount > 0 ? `${enrichedCount} enriched` : undefined },
+        { href: "/lists", label: "Lists", icon: ListChecks, count: lists.length },
+        { href: "/saved", label: "Saved", icon: Bookmark, count: savedSearches.length },
+    ];
 
     return (
         <aside
@@ -57,7 +63,7 @@ const Sidebar = () => {
                 >
                     Navigate
                 </span>
-                {navItems.map(({ href, label, icon: Icon }) => {
+                {navItems.map(({ href, label, icon: Icon, count }) => {
                     const isActive =
                         pathname === href || pathname.startsWith(`${href}/`);
                     return (
@@ -66,22 +72,31 @@ const Sidebar = () => {
                                 <Link
                                     href={href}
                                     className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${isActive
-                                            ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                                        ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                                        : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                                         }`}
                                 >
                                     <Icon
                                         className={`h-4 w-4 shrink-0 transition-colors ${isActive
-                                                ? "text-primary"
-                                                : "text-muted-foreground group-hover:text-sidebar-accent-foreground"
+                                            ? "text-primary"
+                                            : "text-muted-foreground group-hover:text-sidebar-accent-foreground"
                                             }`}
                                     />
-                                    {!collapsed && <span>{label}</span>}
+                                    {!collapsed && (
+                                        <>
+                                            <span className="flex-1">{label}</span>
+                                            {count > 0 && (
+                                                <span className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                                                    {count}
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
                                 </Link>
                             </TooltipTrigger>
                             {collapsed && (
                                 <TooltipContent side="right" sideOffset={8}>
-                                    {label}
+                                    {label} {count > 0 ? `(${count})` : ""}
                                 </TooltipContent>
                             )}
                         </Tooltip>

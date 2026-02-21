@@ -8,11 +8,13 @@ import {
     Building2,
     MoreHorizontal,
     FolderOpen,
+    Check,
 } from "lucide-react";
 import SearchHeader from "@/components/layout/search-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     Dialog,
     DialogContent,
@@ -35,15 +37,45 @@ const ListsPage = () => {
     const { lists, companies, createList, deleteList } = useStore();
     const [newListName, setNewListName] = useState("");
     const [newListDesc, setNewListDesc] = useState("");
+    const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
+    const [companySearch, setCompanySearch] = useState("");
     const [dialogOpen, setDialogOpen] = useState(false);
+
+    const toggleCompany = (id: string) => {
+        setSelectedCompanyIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+    };
+
+    const filteredCompanies = companies.filter(
+        (c) =>
+            !companySearch ||
+            c.name.toLowerCase().includes(companySearch.toLowerCase()) ||
+            c.industry.toLowerCase().includes(companySearch.toLowerCase())
+    );
 
     const handleCreate = () => {
         if (!newListName.trim()) return;
-        createList(newListName.trim(), newListDesc.trim());
+        createList(newListName.trim(), newListDesc.trim(), selectedCompanyIds);
+        const count = selectedCompanyIds.length;
         setNewListName("");
         setNewListDesc("");
+        setSelectedCompanyIds([]);
+        setCompanySearch("");
         setDialogOpen(false);
-        toast.success("List created", { description: `"${newListName}" has been added.` });
+        toast.success("List created", {
+            description: `"${newListName}" with ${count} compan${count !== 1 ? "ies" : "y"}.`,
+        });
+    };
+
+    const handleDialogChange = (open: boolean) => {
+        setDialogOpen(open);
+        if (!open) {
+            setNewListName("");
+            setNewListDesc("");
+            setSelectedCompanyIds([]);
+            setCompanySearch("");
+        }
     };
 
     const handleDelete = (listId: string, name: string) => {
@@ -94,27 +126,26 @@ const ListsPage = () => {
                 <p className="text-xs text-muted-foreground">
                     {lists.length} list{lists.length !== 1 ? "s" : ""}
                 </p>
-                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
                     <DialogTrigger asChild>
                         <Button size="sm" className="h-8 gap-1.5 text-xs">
                             <Plus className="h-3 w-3" />
                             New List
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-lg">
                         <DialogHeader>
                             <DialogTitle>Create New List</DialogTitle>
                             <DialogDescription>
                                 Organize companies into a named collection for review or export.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-3 py-4">
+                        <div className="space-y-4 py-4">
                             <Input
                                 placeholder="List name..."
                                 value={newListName}
                                 onChange={(e) => setNewListName(e.target.value)}
                                 className="h-9 text-sm"
-                                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                             />
                             <Input
                                 placeholder="Description (optional)..."
@@ -122,17 +153,83 @@ const ListsPage = () => {
                                 onChange={(e) => setNewListDesc(e.target.value)}
                                 className="h-9 text-sm"
                             />
+
+                            {/* Company selector */}
+                            <div>
+                                <label className="mb-2 block text-xs font-semibold text-muted-foreground">
+                                    Add Companies
+                                    {selectedCompanyIds.length > 0 && (
+                                        <Badge variant="secondary" className="ml-2 text-[10px]">
+                                            {selectedCompanyIds.length} selected
+                                        </Badge>
+                                    )}
+                                </label>
+                                <Input
+                                    placeholder="Search companies..."
+                                    value={companySearch}
+                                    onChange={(e) => setCompanySearch(e.target.value)}
+                                    className="mb-2 h-8 text-xs"
+                                />
+                                <ScrollArea className="h-48 rounded-md border border-border">
+                                    <div className="p-1">
+                                        {filteredCompanies.map((c) => {
+                                            const isSelected = selectedCompanyIds.includes(c.id);
+                                            return (
+                                                <button
+                                                    key={c.id}
+                                                    type="button"
+                                                    onClick={() => toggleCompany(c.id)}
+                                                    className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors ${isSelected
+                                                        ? "bg-primary/10 text-primary"
+                                                        : "text-foreground/80 hover:bg-accent"
+                                                        }`}
+                                                >
+                                                    <div
+                                                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${isSelected
+                                                            ? "border-primary bg-primary"
+                                                            : "border-border"
+                                                            }`}
+                                                    >
+                                                        {isSelected && (
+                                                            <Check className="h-2.5 w-2.5 text-primary-foreground" />
+                                                        )}
+                                                    </div>
+                                                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted text-[9px] font-bold text-muted-foreground">
+                                                        {c.name.slice(0, 2).toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <span className="font-medium">{c.name}</span>
+                                                        <span className="ml-1.5 text-muted-foreground">
+                                                            · {c.industry}
+                                                        </span>
+                                                    </div>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className="shrink-0 text-[9px] font-normal"
+                                                    >
+                                                        {c.stage}
+                                                    </Badge>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </ScrollArea>
+                            </div>
                         </div>
                         <DialogFooter>
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setDialogOpen(false)}
+                                onClick={() => handleDialogChange(false)}
                             >
                                 Cancel
                             </Button>
-                            <Button size="sm" onClick={handleCreate}>
-                                Create
+                            <Button
+                                size="sm"
+                                onClick={handleCreate}
+                                disabled={!newListName.trim()}
+                            >
+                                Create{selectedCompanyIds.length > 0 ? ` with ${selectedCompanyIds.length}` : ""}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

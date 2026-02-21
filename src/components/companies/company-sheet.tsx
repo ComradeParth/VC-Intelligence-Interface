@@ -10,6 +10,10 @@ import {
     Tag,
     FileText,
     Link2,
+    RefreshCw,
+    ListPlus,
+    Check,
+    Clock,
 } from "lucide-react";
 import {
     Sheet,
@@ -22,17 +26,47 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+    DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { useStore } from "@/store/useStore";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 
 const CompanySheet = () => {
-    const { companies, selectedCompanyId, setSelectedCompanyId, thesis, updateCompanyEnrichment } =
-        useStore();
+    const {
+        companies,
+        selectedCompanyId,
+        setSelectedCompanyId,
+        thesis,
+        updateCompanyEnrichment,
+        lists,
+        addCompanyToList,
+    } = useStore();
     const [enriching, setEnriching] = useState(false);
 
     const company = companies.find((c) => c.id === selectedCompanyId);
     const isOpen = !!selectedCompanyId && !!company;
+
+    /* ── Keyboard: Escape closes sheet ── */
+    const handleKeyDown = useCallback(
+        (e: KeyboardEvent) => {
+            if (e.key === "Escape" && isOpen) {
+                setSelectedCompanyId(null);
+            }
+        },
+        [isOpen, setSelectedCompanyId]
+    );
+
+    useEffect(() => {
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [handleKeyDown]);
 
     const handleEnrich = async () => {
         if (!company) return;
@@ -58,10 +92,34 @@ const CompanySheet = () => {
         } catch (err) {
             toast.error("Enrichment failed", {
                 description: err instanceof Error ? err.message : "Please try again later.",
+                action: {
+                    label: "Retry",
+                    onClick: handleEnrich,
+                },
             });
         } finally {
             setEnriching(false);
         }
+    };
+
+    const handleAddToList = (listId: string, listName: string) => {
+        if (!company) return;
+        addCompanyToList(listId, company.id);
+        toast.success(`Added to "${listName}"`, {
+            description: `${company.name} was added to your list.`,
+        });
+    };
+
+    /* ── Relative time helper ── */
+    const getRelativeTime = (timestamp: string) => {
+        const diff = Date.now() - new Date(timestamp).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h ago`;
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
     };
 
     return (
@@ -112,6 +170,65 @@ const CompanySheet = () => {
                             ))}
                         </div>
 
+                        {/* Action buttons */}
+                        <div className="flex gap-2">
+                            {/* Add to List */}
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+                                        <ListPlus className="h-3.5 w-3.5" />
+                                        Add to List
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-48">
+                                    <DropdownMenuLabel className="text-xs">Your Lists</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    {lists.length === 0 ? (
+                                        <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                                            No lists yet — create one first
+                                        </DropdownMenuItem>
+                                    ) : (
+                                        lists.map((list) => {
+                                            const alreadyIn = company
+                                                ? list.companyIds.includes(company.id)
+                                                : false;
+                                            return (
+                                                <DropdownMenuItem
+                                                    key={list.id}
+                                                    disabled={alreadyIn}
+                                                    onClick={() => handleAddToList(list.id, list.name)}
+                                                    className="text-xs"
+                                                >
+                                                    <span
+                                                        className="mr-2 inline-block h-2 w-2 rounded-full"
+                                                        style={{ backgroundColor: list.color }}
+                                                    />
+                                                    {list.name}
+                                                    {alreadyIn && (
+                                                        <Check className="ml-auto h-3 w-3 text-emerald-400" />
+                                                    )}
+                                                </DropdownMenuItem>
+                                            );
+                                        })
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {/* Website link button */}
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 text-xs"
+                                asChild
+                            >
+                                <a href={company?.url} target="_blank" rel="noopener">
+                                    <Globe className="h-3.5 w-3.5" />
+                                    Website
+                                    <ExternalLink className="h-3 w-3" />
+                                </a>
+                            </Button>
+                        </div>
+
                         {/* Description */}
                         <div>
                             <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -122,30 +239,31 @@ const CompanySheet = () => {
                             </p>
                         </div>
 
-                        {/* Website link */}
-                        <a
-                            href={company?.url}
-                            target="_blank"
-                            rel="noopener"
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary"
-                        >
-                            <Globe className="h-3.5 w-3.5" />
-                            {company?.url}
-                            <ExternalLink className="h-3 w-3" />
-                        </a>
-
                         <Separator className="bg-border" />
 
                         {/* Enrichment Section */}
                         <div>
-                            <h3 className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                <Sparkles className="h-3.5 w-3.5 text-amber-400" /> AI Enrichment
-                            </h3>
+                            <div className="mb-3 flex items-center justify-between">
+                                <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                    <Sparkles className="h-3.5 w-3.5 text-amber-400" /> AI Enrichment
+                                </h3>
+                                {company?.enrichmentData && !enriching && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleEnrich}
+                                        className="h-6 gap-1 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                                    >
+                                        <RefreshCw className="h-3 w-3" />
+                                        Re-enrich
+                                    </Button>
+                                )}
+                            </div>
 
                             {enriching ? (
                                 <EnrichmentSkeleton />
                             ) : company?.enrichmentData ? (
-                                <EnrichmentDisplay data={company.enrichmentData} />
+                                <EnrichmentDisplay data={company.enrichmentData} getRelativeTime={getRelativeTime} />
                             ) : (
                                 <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4 text-center">
                                     <Sparkles className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
@@ -203,10 +321,20 @@ const EnrichmentSkeleton = () => (
 /* ── Enrichment data display ── */
 const EnrichmentDisplay = ({
     data,
+    getRelativeTime,
 }: {
     data: NonNullable<import("@/types").EnrichmentData>;
+    getRelativeTime: (ts: string) => string;
 }) => (
     <div className="space-y-4 animate-in fade-in-0 slide-in-from-bottom-3 duration-500">
+        {/* Enrichment timestamp */}
+        {data.sources?.[0]?.timestamp && (
+            <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <Clock className="h-3 w-3" />
+                Enriched {getRelativeTime(data.sources[0].timestamp)}
+            </div>
+        )}
+
         {/* Summary */}
         <div>
             <h4 className="mb-1.5 flex items-center gap-1 text-xs font-semibold text-muted-foreground">
