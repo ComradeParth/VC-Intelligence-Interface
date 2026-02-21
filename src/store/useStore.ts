@@ -10,6 +10,8 @@ interface StoreState {
     setSelectedCompanyId: (id: string | null) => void;
     updateCompanyEnrichment: (companyId: string, data: EnrichmentData) => void;
     addCompany: (company: Omit<Company, "id" | "enrichmentData">) => void;
+    updateCompany: (companyId: string, updates: Partial<Omit<Company, "id" | "enrichmentData">>) => void;
+    deleteCompany: (companyId: string) => void;
 
     /* ── Lists ── */
     lists: CompanyList[];
@@ -30,6 +32,14 @@ interface StoreState {
     /* ── Search ── */
     globalSearch: string;
     setGlobalSearch: (query: string) => void;
+
+    /* ── Multi-selection & Bulk Actions ── */
+    selectedIds: string[];
+    toggleSelection: (id: string) => void;
+    setSelection: (ids: string[]) => void;
+    clearSelection: () => void;
+    bulkDeleteCompanies: (ids: string[]) => void;
+    bulkAddCompaniesToList: (listId: string, companyIds: string[]) => void;
 }
 
 const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -61,6 +71,23 @@ export const useStore = create<StoreState>()(
                         ...state.companies,
                         { ...company, id: generateId(), enrichmentData: null },
                     ],
+                })),
+
+            updateCompany: (companyId, updates) =>
+                set((state) => ({
+                    companies: state.companies.map((c) =>
+                        c.id === companyId ? { ...c, ...updates } : c
+                    ),
+                })),
+
+            deleteCompany: (companyId) =>
+                set((state) => ({
+                    companies: state.companies.filter((c) => c.id !== companyId),
+                    lists: state.lists.map((l) => ({
+                        ...l,
+                        companyIds: l.companyIds.filter((id) => id !== companyId),
+                    })),
+                    selectedCompanyId: state.selectedCompanyId === companyId ? null : state.selectedCompanyId,
                 })),
 
             /* ── Lists ── */
@@ -148,6 +175,48 @@ export const useStore = create<StoreState>()(
             /* ── Search ── */
             globalSearch: "",
             setGlobalSearch: (query) => set({ globalSearch: query }),
+
+            /* ── Multi-selection & Bulk Actions ── */
+            selectedIds: [],
+
+            toggleSelection: (id) =>
+                set((state) => ({
+                    selectedIds: state.selectedIds.includes(id)
+                        ? state.selectedIds.filter((x) => x !== id)
+                        : [...state.selectedIds, id],
+                })),
+
+            setSelection: (ids) => set({ selectedIds: ids }),
+
+            clearSelection: () => set({ selectedIds: [] }),
+
+            bulkDeleteCompanies: (ids) =>
+                set((state) => ({
+                    companies: state.companies.filter((c) => !ids.includes(c.id)),
+                    lists: state.lists.map((l) => ({
+                        ...l,
+                        companyIds: l.companyIds.filter((id) => !ids.includes(id)),
+                    })),
+                    selectedIds: [],
+                    selectedCompanyId:
+                        state.selectedCompanyId && ids.includes(state.selectedCompanyId)
+                            ? null
+                            : state.selectedCompanyId,
+                })),
+
+            bulkAddCompaniesToList: (listId, companyIds) =>
+                set((state) => ({
+                    lists: state.lists.map((l) =>
+                        l.id === listId
+                            ? {
+                                ...l,
+                                companyIds: Array.from(new Set([...l.companyIds, ...companyIds])),
+                                updatedAt: new Date().toISOString(),
+                            }
+                            : l
+                    ),
+                    selectedIds: [],
+                })),
         }),
         {
             name: "vc-intelligence-store",

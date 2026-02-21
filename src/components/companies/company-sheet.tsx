@@ -14,6 +14,8 @@ import {
     ListPlus,
     Check,
     Clock,
+    Pencil,
+    Trash2,
 } from "lucide-react";
 import {
     Sheet,
@@ -34,7 +36,16 @@ import {
     DropdownMenuSeparator,
     DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { useStore } from "@/store/useStore";
+import EditCompanyDialog from "./edit-company-dialog";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 
@@ -47,8 +58,11 @@ const CompanySheet = () => {
         updateCompanyEnrichment,
         lists,
         addCompanyToList,
+        deleteCompany,
     } = useStore();
-    const [enriching, setEnriching] = useState(false);
+    const [enriching, setEnriching] = useState<"idle" | "scraping" | "analyzing" | "saving">("idle");
+    const [showEditDialog, setShowEditDialog] = useState(false);
+    const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
     const company = companies.find((c) => c.id === selectedCompanyId);
     const isOpen = !!selectedCompanyId && !!company;
@@ -56,11 +70,17 @@ const CompanySheet = () => {
     /* ── Keyboard: Escape closes sheet ── */
     const handleKeyDown = useCallback(
         (e: KeyboardEvent) => {
-            if (e.key === "Escape" && isOpen) {
+            if (!isOpen) return;
+
+            if (e.key === "Escape") {
                 setSelectedCompanyId(null);
+            } else if (e.key === "e" && enriching === "idle" && !showEditDialog && !showDeleteAlert) {
+                handleEnrich();
+            } else if (e.key === "Delete" || e.key === "Backspace") {
+                if (!showEditDialog) setShowDeleteAlert(true);
             }
         },
-        [isOpen, setSelectedCompanyId]
+        [isOpen, setSelectedCompanyId, enriching, showEditDialog, showDeleteAlert, company]
     );
 
     useEffect(() => {
@@ -70,9 +90,12 @@ const CompanySheet = () => {
 
     const handleEnrich = async () => {
         if (!company) return;
-        setEnriching(true);
+
+        setEnriching("scraping");
+        await new Promise(r => setTimeout(r, 800)); // Visual feedback
 
         try {
+            setEnriching("analyzing");
             const res = await fetch("/api/enrich", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -85,6 +108,9 @@ const CompanySheet = () => {
             }
 
             const data = await res.json();
+            setEnriching("saving");
+            await new Promise(r => setTimeout(r, 500));
+
             updateCompanyEnrichment(company.id, data);
             toast.success("Profile enriched", {
                 description: `${company.name} has been updated with AI insights.`,
@@ -98,7 +124,7 @@ const CompanySheet = () => {
                 },
             });
         } finally {
-            setEnriching(false);
+            setEnriching("idle");
         }
     };
 
@@ -108,6 +134,14 @@ const CompanySheet = () => {
         toast.success(`Added to "${listName}"`, {
             description: `${company.name} was added to your list.`,
         });
+    };
+
+    const handleDelete = () => {
+        if (!company) return;
+        deleteCompany(company.id);
+        toast.success(`${company.name} deleted`);
+        setShowDeleteAlert(false);
+        setSelectedCompanyId(null);
     };
 
     /* ── Relative time helper ── */
@@ -124,8 +158,8 @@ const CompanySheet = () => {
 
     return (
         <Sheet open={isOpen} onOpenChange={(open) => !open && setSelectedCompanyId(null)}>
-            <SheetContent className="w-full border-border bg-card sm:max-w-lg">
-                <SheetHeader className="pb-4">
+            <SheetContent className="p-0 w-full border-border bg-card sm:max-w-lg">
+                <SheetHeader className="px-6 py-4 border-b border-border">
                     <div className="flex items-start gap-4">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-sm font-bold text-primary">
                             {company?.name.slice(0, 2).toUpperCase()}
@@ -151,7 +185,7 @@ const CompanySheet = () => {
                 </SheetHeader>
 
                 <ScrollArea className="h-[calc(100vh-8rem)]">
-                    <div className="space-y-6 pr-4">
+                    <div className="space-y-6 px-6 pb-8">
                         {/* Meta badges */}
                         <div className="flex flex-wrap gap-2">
                             <Badge variant="outline" className="text-xs">
@@ -227,6 +261,26 @@ const CompanySheet = () => {
                                     <ExternalLink className="h-3 w-3" />
                                 </a>
                             </Button>
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 text-xs"
+                                onClick={() => setShowEditDialog(true)}
+                            >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Edit
+                            </Button>
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 text-xs text-rose-500 border-rose-500/20 hover:bg-rose-500/10"
+                                onClick={() => setShowDeleteAlert(true)}
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                            </Button>
                         </div>
 
                         {/* Description */}
@@ -260,8 +314,19 @@ const CompanySheet = () => {
                                 )}
                             </div>
 
-                            {enriching ? (
-                                <EnrichmentSkeleton />
+                            {enriching !== "idle" ? (
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-primary">
+                                        <div className="flex items-center gap-2">
+                                            <RefreshCw className="h-3 w-3 animate-spin" />
+                                            {enriching === "scraping" && "Scraping Website..."}
+                                            {enriching === "analyzing" && "Analyzing with AI..."}
+                                            {enriching === "saving" && "Finalizing Profile..."}
+                                        </div>
+                                        <span>{enriching === "scraping" ? "15%" : enriching === "analyzing" ? "65%" : "95%"}</span>
+                                    </div>
+                                    <EnrichmentSkeleton />
+                                </div>
                             ) : company?.enrichmentData ? (
                                 <EnrichmentDisplay data={company.enrichmentData} getRelativeTime={getRelativeTime} />
                             ) : (
@@ -283,6 +348,31 @@ const CompanySheet = () => {
                         </div>
                     </div>
                 </ScrollArea>
+
+                <EditCompanyDialog
+                    company={company ?? null}
+                    open={showEditDialog}
+                    onOpenChange={setShowEditDialog}
+                />
+
+                <Dialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Are you absolutely sure?</DialogTitle>
+                            <DialogDescription>
+                                This will permanently delete <strong>{company?.name}</strong> and remove it from all your lists.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setShowDeleteAlert(false)}>
+                                Cancel
+                            </Button>
+                            <Button variant="destructive" onClick={handleDelete}>
+                                Delete
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </SheetContent>
         </Sheet>
     );

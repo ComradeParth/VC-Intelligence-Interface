@@ -5,6 +5,7 @@ import { Filter, Download, Sparkles, X, Plus } from "lucide-react";
 import SearchHeader from "@/components/layout/search-header";
 import CompanyTable from "@/components/companies/company-table";
 import CompanySheet from "@/components/companies/company-sheet";
+import BulkActionBar from "@/components/companies/bulk-action-bar";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
@@ -32,14 +33,18 @@ import { toast } from "sonner";
 const CompaniesPage = () => {
     const [industryFilter, setIndustryFilter] = useState("all");
     const [stageFilter, setStageFilter] = useState("all");
+    const [enrichmentFilter, setEnrichmentFilter] = useState("all");
     const { companies, thesis, updateCompanyEnrichment, addCompany } = useStore();
 
     const activeFilters =
-        (industryFilter !== "all" ? 1 : 0) + (stageFilter !== "all" ? 1 : 0);
+        (industryFilter !== "all" ? 1 : 0) +
+        (stageFilter !== "all" ? 1 : 0) +
+        (enrichmentFilter !== "all" ? 1 : 0);
 
     const clearFilters = () => {
         setIndustryFilter("all");
         setStageFilter("all");
+        setEnrichmentFilter("all");
     };
 
     /* ── Add Company Dialog ── */
@@ -248,6 +253,49 @@ const CompaniesPage = () => {
                         </DropdownMenuContent>
                     </DropdownMenu>
 
+                    {/* Enrichment filter */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 gap-1.5 text-xs"
+                            >
+                                <Sparkles className="h-3 w-3" />
+                                Status
+                                {enrichmentFilter !== "all" && (
+                                    <Badge variant="secondary" className="ml-1 px-1 py-0 text-[10px]">
+                                        {enrichmentFilter === "enriched" ? "Enriched" : "Unenriched"}
+                                    </Badge>
+                                )}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-40">
+                            <DropdownMenuLabel className="text-xs">
+                                Filter by Enrichment
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                onClick={() => setEnrichmentFilter("all")}
+                                className="text-xs"
+                            >
+                                All Companies
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => setEnrichmentFilter("enriched")}
+                                className="text-xs"
+                            >
+                                Enriched Only
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onClick={() => setEnrichmentFilter("unenriched")}
+                                className="text-xs"
+                            >
+                                Unenriched Only
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
                     {activeFilters > 0 && (
                         <Button
                             variant="ghost"
@@ -264,7 +312,22 @@ const CompaniesPage = () => {
                     )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-6">
+                    <div className="hidden lg:flex flex-col items-end gap-1 px-4 border-r border-border">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/50">Enrichment Health</span>
+                        <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-20 rounded-full bg-muted/50 overflow-hidden">
+                                <div
+                                    className="h-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)] transition-all duration-1000"
+                                    style={{ width: `${(companies.filter(c => !!c.enrichmentData).length / Math.max(companies.length, 1)) * 100}%` }}
+                                />
+                            </div>
+                            <span className="text-xs font-bold text-primary">
+                                {Math.round((companies.filter(c => !!c.enrichmentData).length / Math.max(companies.length, 1)) * 100)}%
+                            </span>
+                        </div>
+                    </div>
+
                     {/* Add Company Button */}
                     <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                         <DialogTrigger asChild>
@@ -394,11 +457,15 @@ const CompaniesPage = () => {
                 <CompanyTable
                     industryFilter={industryFilter}
                     stageFilter={stageFilter}
+                    enrichmentFilter={enrichmentFilter}
                 />
             </div>
 
             {/* Company detail sheet */}
             <CompanySheet />
+
+            {/* Floating bulk actions */}
+            <BulkActionBar />
         </div >
     );
 };

@@ -37,7 +37,7 @@ const SearchHeader = ({ title, subtitle }: SearchHeaderProps) => {
                             {title}
                         </h1>
                         {subtitle && (
-                            <p className="mt-0.5 text-xs text-muted-foreground">
+                            <p className="mt-0.5 text-[10px] uppercase tracking-widest text-muted-foreground/60 font-medium">
                                 {subtitle}
                             </p>
                         )}
